@@ -35,7 +35,7 @@ def clip_to_area(file, area, to_bounds=True):
             clip = shapely.geometry.box(**area.bounds.iloc[0].astype(int))
         else:
             clip = area.geometry[0]
-        out_image, out_transform = rasterio.mask.mask(src, [clip], filled=not to_bounds, crop=True)
+        out_image, out_transform = rasterio.mask.mask(src, [clip], filled=not to_bounds, crop=True, all_touched=True)
         out_meta = src.meta.copy()
     out_meta.update({
         "driver": "GTiff",
@@ -83,7 +83,7 @@ def crop_raster(file, geom, geom_crs, buffer=None, driver=None):
     shapes = geom_to_gdf(geom, geom_crs, buffer=buffer)
 
     with rasterio.open(file) as src:
-        out_image, out_transform = rasterio.mask.mask(src, shapes, filled=True, nodata=-9999, crop=True)
+        out_image, out_transform = rasterio.mask.mask(src, shapes, filled=True, nodata=-9999, crop=True, all_touched=True)
         out_meta = src.meta
         out_meta.update({"driver": driver,
                          "height": out_image.shape[1],
