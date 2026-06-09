@@ -14,7 +14,6 @@ import numpy as np
 from shapely.geometry import Polygon
 from owslib.wcs import WebCoverageService
 from owslib.wms import WebMapService
-import pkg_resources
 import importlib.metadata
 import shapely
 import json
@@ -110,8 +109,12 @@ class Connection(object):
 
 
 def connect(**data):
-    connections = {entry.name: entry.load()
-                   for entry in importlib.metadata.entry_points()['terrainy.connection']}
+    eps = importlib.metadata.entry_points()
+    if hasattr(eps, "select"):
+        entries = eps.select(group="terrainy.connection")
+    else:
+        entries = eps["terrainy.connection"]
+    connections = {entry.name: entry.load() for entry in entries}
     if data["connection_type"] not in connections:
         raise NotImplementedError("Unknown connection type")
     return connections[data["connection_type"]](**data)

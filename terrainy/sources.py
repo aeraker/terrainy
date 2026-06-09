@@ -1,14 +1,15 @@
 import geopandas as gpd
 import pandas as pd
 import os.path
-import pkg_resources
+import json
 import traceback
+from importlib.resources import files
 from . import connection 
 
 sources_path = os.path.expanduser("~/.config/terrainy/sources.geojson")
 
 def load():
-    with pkg_resources.resource_stream("terrainy", "sources.geojson") as f:
+    with files("terrainy").joinpath("sources.geojson").open("rb") as f:
         sources = gpd.read_file(f).set_index("title")
     if os.path.exists(sources_path):
         with open(sources_path, "rb") as f:
