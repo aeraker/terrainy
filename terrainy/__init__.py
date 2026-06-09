@@ -6,7 +6,6 @@ from rasterio.transform import Affine
 import rasterio.rio.clip
 
 import geopandas as gpd
-import pkg_resources
 import shapely
 from shapely.geometry import box, mapping
 from rasterio.warp import calculate_default_transform, reproject, Resampling
