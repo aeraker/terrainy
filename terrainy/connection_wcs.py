@@ -10,12 +10,12 @@ class WcsConnection(connection.Connection):
         self.wcs = WebCoverageService(**self.kw["connection_args"])
         self.layer = self.wcs[self.kw["layer"]]
 
-    def download_tile(self, bounds, tif_res, size):
+    def download_tile(self, bounds, tif_res, size, resy=None):
         return self.wcs.getCoverage(
             identifier=self.layer.id,
             crs=self.get_crs(),
             bbox=bounds,
-            resx=tif_res, resy=tif_res,
+            resx=tif_res, resy=resy if resy is not None else tif_res,
             format='GeoTIFF')
 
     def get_bounds(self):

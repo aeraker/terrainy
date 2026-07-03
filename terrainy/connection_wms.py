@@ -7,8 +7,8 @@ class WmsConnection(connection.Connection):
     formats = ['image/geotiff',
                'image/png',
                'image/jpeg',
-               'image/tiff']
-    
+               'image/tiff',]
+
     def __init__(self, **kw):
         connection.Connection.__init__(self, **kw)
         self.wms = WebMapService(**self.kw["connection_args"])
@@ -17,7 +17,7 @@ class WmsConnection(connection.Connection):
         supported = self.wms.getOperationByName('GetMap').formatOptions
         self.file_format = [fmt for fmt in self.formats if fmt in supported][0]
 
-    def download_tile(self, bounds, tif_res, size):
+    def download_tile(self, bounds, tif_res, size, resy=None):
         return self.wms.getmap(layers=[self.layer.id],
                                srs=self.get_crs(),
                                bbox=bounds,

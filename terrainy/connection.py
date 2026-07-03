@@ -9,7 +9,6 @@ from rasterio.transform import Affine
 import rasterio.rio.clip
 from rasterio.crs import CRS
 import geopandas as gpd
-import time
 import numpy as np
 from shapely.geometry import Polygon
 from owslib.wcs import WebCoverageService
@@ -19,6 +18,7 @@ import shapely
 import json
 import contextlib
 import os
+import math
 
 # Grid sizing
 tile_pixel_length = 1024
@@ -32,6 +32,14 @@ cachedir = os.path.expanduser("~/.cache/terrainy")
 class Connection(object):
     def __init__(self, **kw):
         self.kw = kw
+
+    def _meter_resolution_to_crs_units(self, tif_res_m, lon, lat):
+        crs = CRS.from_user_input(self.get_crs())
+        if crs.is_geographic:
+            m_per_deg_lat = 111320.0
+            m_per_deg_lon = 111320.0 * math.cos(math.radians(lat))
+            return tif_res_m / m_per_deg_lon, tif_res_m / m_per_deg_lat
+        return tif_res_m, tif_res_m
 
     def get_shape(self):
         bbox = self.get_bounds()
@@ -76,12 +84,17 @@ class Connection(object):
         # Convert data back to crs of map
         gdf = gdf.to_crs(self.get_crs())
         xmin, ymin, xmax, ymax = gdf.total_bounds
+        center_lon = (xmin + xmax) / 2
+        center_lat = (ymin + ymax) / 2
+        tif_res_x, tif_res_y = self._meter_resolution_to_crs_units(
+            tif_res, center_lon, center_lat
+        )
 
-        tile_m_length = tile_pixel_length * tif_res
-        tile_m_width = tile_pixel_width * tif_res
+        tile_extent_x = tile_pixel_width * tif_res_x
+        tile_extent_y = tile_pixel_length * tif_res_y
 
-        width = (xmax - xmin) / tif_res
-        length = (ymax - ymin) / tif_res
+        width = (xmax - xmin) / tif_res_x
+        length = (ymax - ymin) / tif_res_y
 
         nr_cols = int(np.ceil(width / tile_pixel_length))
         nr_rows = int(np.ceil(length / tile_pixel_width))
@@ -92,29 +105,47 @@ class Connection(object):
             for y_idx in range(nr_rows):
                 print('Working on block %s,%s of %s,%s' % (x_idx + 1, y_idx + 1, nr_cols, nr_rows))
 
-                x = xmin + x_idx * tile_m_width
-                y = ymax - y_idx * tile_m_length - tile_m_length
+                x = xmin + x_idx * tile_extent_x
+                y = ymax - y_idx * tile_extent_y - tile_extent_y
 
                 polygon = (Polygon(
-                    [(x, y), (x + tile_m_width, y), (x + tile_m_width, y + tile_m_length), (x, y + tile_m_length)]))
+                    [(x, y), (x + tile_extent_x, y), (x + tile_extent_x, y + tile_extent_y), (x, y + tile_extent_y)]))
 
-                with self.open_tile(polygon.bounds, tif_res, (tile_pixel_width, tile_pixel_length)) as dataset:
+                with self.open_tile(
+                    polygon.bounds, tif_res_x, (tile_pixel_width, tile_pixel_length), resy=tif_res_y
+                ) as dataset:
                     data_array = dataset.read()
 
                     array[:, y_idx * tile_pixel_width:y_idx * tile_pixel_width + tile_pixel_width,
                     x_idx * tile_pixel_length:x_idx * tile_pixel_length + tile_pixel_length] = data_array[:, :, :]
 
-        transform = Affine.translation(xmin, ymax) * Affine.scale(tif_res, -tif_res)
+        transform = Affine.translation(xmin, ymax) * Affine.scale(tif_res_x, -tif_res_y)
         return {"array": array, "transform": transform, "data": self.kw, "gdf": gdf}
 
 
-def connect(**data):
+def connect(connection_settings):
+    """
+    Connect to a terrainy source
+    Args:
+        connection_settings: A dictionary or a terrainy source object containing the connection settings for the terrainy source
+    Returns:
+        A Connection object
+    """
+    # Convert source object to dictionary if needed
+    if hasattr(connection_settings, "to_dict"):
+        connection_settings = connection_settings.to_dict()
+
+    # Make sure connection_args is a dictionary
+    connection_args = connection_settings.get("connection_args")
+    if isinstance(connection_args, str):
+        connection_settings["connection_args"] = json.loads(connection_args)
+
     eps = importlib.metadata.entry_points()
     if hasattr(eps, "select"):
         entries = eps.select(group="terrainy.connection")
     else:
         entries = eps["terrainy.connection"]
     connections = {entry.name: entry.load() for entry in entries}
-    if data["connection_type"] not in connections:
+    if connection_settings["connection_type"] not in connections:
         raise NotImplementedError("Unknown connection type")
-    return connections[data["connection_type"]](**data)
+    return connections[connection_settings["connection_type"]](**connection_settings)
