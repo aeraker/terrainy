@@ -26,7 +26,8 @@ setuptools.setup(
         "rtree",
         "contextily",
 	"xyzservices",
-        "click"
+        "click",
+        "requests",
     ],
     entry_points={
         'terrainy.connection': [
@@ -34,6 +35,7 @@ setuptools.setup(
             'wms = terrainy.connection_wms:WmsConnection',
             'tile = terrainy.connection_tile:TileConnection',
             'cog = terrainy.connection_cog:CogConnection',
+            'stac = terrainy.connection_stac:StacConnection',
         ],
         'console_scripts': [
             'terrainy = terrainy.cmd:main',
