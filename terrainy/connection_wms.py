@@ -19,7 +19,7 @@ class WmsConnection(connection.Connection):
 
     def download_tile(self, bounds, tif_res, size, resy=None):
         return self.wms.getmap(layers=[self.layer.id],
-                               srs=self.get_crs(),
+                               srs=self.kw.get("crs_orig") or self.layer.boundingBox[4],
                                bbox=bounds,
                                size=size,
                                format=self.file_format)
@@ -28,4 +28,8 @@ class WmsConnection(connection.Connection):
         return self.layer.boundingBox[:4]
 
     def get_crs(self):
-        return self.layer.boundingBox[4]
+        crs = self.kw.get("crs_orig") or self.layer.boundingBox[4]
+        # CRS:84 is OGC WGS84 lon/lat; pyproj does not recognize the WMS alias.
+        if isinstance(crs, str) and crs.upper().replace(" ", "") in ("CRS:84", "CRS84"):
+            crs = "OGC:CRS84"
+        return crs
